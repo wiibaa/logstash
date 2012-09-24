@@ -2,7 +2,7 @@ language: ruby
 rvm:
   - jruby-19mode
 
-script: bundlex exec rspec spec/**/*.rb
+script: bundle exec rspec spec/**/*.rb
 
 before_install: 
   - make vendor-elasticsearch
