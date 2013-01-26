@@ -115,6 +115,11 @@ class LogStash::Inputs::File < LogStash::Inputs::Base
     if @start_position == "beginning"
       @tail_config[:start_new_files_at] = :beginning
     end
+
+    #Same hostname for all file inputs
+    @@hostname |= Socket.gethostname 
+    #Dummy in-mem cache
+    @sources = {}
   end # def register
 
   public
@@ -122,11 +127,10 @@ class LogStash::Inputs::File < LogStash::Inputs::Base
     @tail = FileWatch::Tail.new(@tail_config)
     @tail.logger = @logger
     @path.each { |path| @tail.tail(path) }
-    hostname = Socket.gethostname
 
     @tail.subscribe do |path, line|
-      source = Addressable::URI.new(:scheme => "file", :host => hostname, :path => path).to_s
-      @logger.debug("Received line", :path => path, :line => line)
+      source = source_uri(path)
+      @logger.debug? and @logger.debug("Received line", :path => path, :line => line)
       e = to_event(line, source)
       if e
         queue << e
@@ -139,4 +143,16 @@ class LogStash::Inputs::File < LogStash::Inputs::Base
   def teardown
     @tail.quit
   end # def teardown
+
+  private
+  def source_uri(path)
+    if ! @sources.member?(path)
+      # Avoid memory leak on very huge globs with increasing number of files
+      # Supposing that oldest file 
+      # (like filename containing a timestamp)
+      @sources = {} if @sources.length  > 10000
+      @sources[path] = Addressable::URI.new(:scheme => "file", :host => @@hostname, :path => path).to_s
+    end
+    return @sources[path]
+  end
 end # class LogStash::Inputs::File
