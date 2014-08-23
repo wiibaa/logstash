@@ -1,7 +1,7 @@
 # encoding: utf-8
 require "logstash/inputs/base"
 require "logstash/namespace"
-require "socket"
+require "logstash/util/socket_peer"
 
 # Read events over a UNIX socket.
 #
@@ -41,6 +41,9 @@ class LogStash::Inputs::Unix < LogStash::Inputs::Base
   def register
     require "socket"
     require "timeout"
+
+    # monkey patch UNIXSocket to include socket peer
+    UNIXSocket.module_eval{include ::LogStash::Util::SocketPeer}
 
     if server?
       @logger.info("Starting unix input listener", :address => "#{@path}", :force_unlink => "#{@force_unlink}")
@@ -145,7 +148,6 @@ class LogStash::Inputs::Unix < LogStash::Inputs::Base
     else
       loop do
         client_socket = UNIXSocket.new(@path)
-        client_socket.instance_eval { class << self; include ::LogStash::Util::SocketPeer end }
         @logger.debug("Opened connection", :client => @path)
         handle_socket(client_socket, output_queue)
       end # loop

@@ -4,8 +4,6 @@ require "logstash/errors"
 require "logstash/environment"
 require "logstash/namespace"
 require "logstash/util/socket_peer"
-require "socket"
-require "timeout"
 
 # Read events over a TCP socket from a Log4j SocketAppender.
 #
@@ -42,6 +40,8 @@ class LogStash::Inputs::Log4j < LogStash::Inputs::Base
 
   public
   def register
+    require "socket"
+    require "timeout"
     LogStash::Environment.load_elasticsearch_jars!
     require "java"
     require "jruby/serialization"
@@ -51,6 +51,9 @@ class LogStash::Inputs::Log4j < LogStash::Inputs::Base
     rescue
       raise(LogStash::PluginLoadingError, "Log4j java library not loaded")
     end
+
+    # monkey patch TCPSocket to include socket peer
+    TCPSocket.module_eval{include ::LogStash::Util::SocketPeer}
 
     if server?
       @logger.info("Starting Log4j input listener", :address => "#{@host}:#{@port}")
@@ -120,10 +123,6 @@ class LogStash::Inputs::Log4j < LogStash::Inputs::Base
       loop do
         # Start a new thread for each connection.
         Thread.start(@server_socket.accept) do |s|
-          # TODO(sissel): put this block in its own method.
-
-          # monkeypatch a 'peer' method onto the socket.
-          s.instance_eval { class << self; include ::LogStash::Util::SocketPeer end }
           @logger.debug("Accepted connection", :client => s.peer,
                         :server => "#{@host}:#{@port}")
           handle_socket(s, output_queue)
@@ -132,7 +131,6 @@ class LogStash::Inputs::Log4j < LogStash::Inputs::Base
     else
       loop do
         client_socket = TCPSocket.new(@host, @port)
-        client_socket.instance_eval { class << self; include ::LogStash::Util::SocketPeer end }
         @logger.debug("Opened connection", :client => "#{client_socket.peer}")
         handle_socket(client_socket, output_queue)
       end # loop
