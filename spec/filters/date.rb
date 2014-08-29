@@ -27,6 +27,7 @@ RUBY_ENGINE == "jruby" and describe LogStash::Filters::Date do
         date {
           match => [ "mydate", "ISO8601" ]
           locale => "en"
+          timezone => "UTC"
         }
       }
     CONFIG
@@ -48,6 +49,16 @@ RUBY_ENGINE == "jruby" and describe LogStash::Filters::Date do
       "2001-09-05T16:36:36.123+0700"     => "2001-09-05T09:36:36.123Z",
       "2001-11-06T20:45:45.123-0000"     => "2001-11-06T20:45:45.123Z",
       "2001-12-07T23:54:54.123Z"         => "2001-12-07T23:54:54.123Z",
+
+      #Almost ISO8601 support, with timezone
+
+      "2001-11-06 20:45:45.123-0000"     => "2001-11-06T20:45:45.123Z",
+      "2001-12-07 23:54:54.123Z"         => "2001-12-07T23:54:54.123Z",
+
+      #Almost ISO8601 support, without timezone
+
+      "2001-11-06 20:45:45.123"     => "2001-11-06T20:45:45.123Z",
+
     }
 
     times.each do |input, output|
@@ -112,6 +123,12 @@ RUBY_ENGINE == "jruby" and describe LogStash::Filters::Date do
         insist { subject["@timestamp"].time } == Time.iso8601(output).utc
       end
     end # times.each
+
+    #Invalid value should not be evaluated to zero (String#to_i madness)
+    sample("mydate" => "%{bad_value}") do
+      insist { subject["mydate"] } == "%{bad_value}"
+      insist { subject["@timestamp"] } != Time.iso8601("1970-01-01T00:00:00.000Z").utc
+    end
   end
 
   describe "parsing microsecond-precise times with UNIX (#213)" do
@@ -127,6 +144,18 @@ RUBY_ENGINE == "jruby" and describe LogStash::Filters::Date do
     sample("mydate" => "1350414944.123456") do
       # Joda time only supports milliseconds :\
       insist { subject.timestamp.time } == Time.iso8601("2012-10-16T12:15:44.123-07:00").utc
+    end
+
+    #Support float values
+    sample("mydate" => 1350414944.123456) do
+      insist { subject["mydate"] } == 1350414944.123456
+      insist { subject["@timestamp"].time } == Time.iso8601("2012-10-16T12:15:44.123-07:00").utc
+    end
+
+    #Invalid value should not be evaluated to zero (String#to_i madness)
+    sample("mydate" => "%{bad_value}") do
+      insist { subject["mydate"] } == "%{bad_value}"
+      insist { subject["@timestamp"] } != Time.iso8601("1970-01-01T00:00:00.000Z").utc
     end
   end
 
