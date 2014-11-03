@@ -57,7 +57,7 @@ def download(url, output)
       fail "HTTP fetch failed for #{url}. #{response}" if response.code != "200"
       size = (response["content-length"].to_i || -1).to_f
       count = 0
-      File.open(tmp, "w") do |fd|
+      File.open(tmp, "wb") do |fd|
         response.read_body do |chunk|
           fd.write(chunk)
           digest << chunk

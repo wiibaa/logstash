@@ -53,13 +53,11 @@ namespace "artifact" do
     require "archive/tar/minitar"
     require "logstash/version"
     tarpath = "build/logstash-#{LOGSTASH_VERSION}.tar.gz"
-    tarfile = File.new(tarpath, "wb")
-    gz = Zlib::GzipWriter.new(tarfile, Zlib::BEST_COMPRESSION)
+    gz = Zlib::GzipWriter.new(File.new(tarpath, "wb"), Zlib::BEST_COMPRESSION)
     tar = Archive::Tar::Minitar::Output.new(gz)
     files.each do |path|
       Archive::Tar::Minitar.pack_file(path, tar)
     end
-    tar.close
     gz.close
     puts "Complete: #{tarpath}"
   end
